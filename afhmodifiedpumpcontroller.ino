@@ -10,7 +10,7 @@
 
 const char *ssid = "Solar_Water_Heater_Info";
 //const char *password = "00000000"; Not using a password for now
-
+//The website where data is published seems to default to 192.168.4.1
 WebServer server(80);
 
 TwoWire I2C_one = TwoWire(0);
@@ -195,7 +195,7 @@ void setup() {
 }
 
 void loop() {
-
+  delay(1000);//Delay for one second between loops
   // Handle client requests
   server.handleClient();
 
@@ -290,12 +290,14 @@ void loop() {
   Serial.print(targettemp);
   Serial.println(" C");
 
-  if (lastTemperature_1 < targettemp & lastTemperature_1 < lastTemperature_2+1){//Pump is on if outlet is hotter than inlet and also hotter than user set temp
-    pumpStatus = 1;
-    delay(100);
-  }else{
-    pumpStatus = 0;
-  }
+ // */if (lastTemperature_1 < targettemp & lastTemperature_1 < lastTemperature_2+1){//Pump is on if outlet is hotter than inlet and also hotter than user set temp
+ //  pumpStatus = 1;
+ // delay(100);
+ //}else{
+ //   pumpStatus = 0;
+ //}
+
+void pumpController();
 
   display.setCursor(0, 40);
   display.print("Pump:");
