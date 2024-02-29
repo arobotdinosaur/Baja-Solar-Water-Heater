@@ -8,7 +8,7 @@
 #include <DNSServer.h>
 
 
-const char *ssid = "Solar_Water_Heater_Info";
+const char *ssid = "Solar_Water_Heater_Info_192.168.4.1";
 //const char *password = "00000000"; Not using a password for now
 //The website where data is published seems to default to 192.168.4.1
 WebServer server(80);
@@ -43,6 +43,8 @@ volatile float flowRate;       // Stores the calculated flow rate
 QueueHandle_t temperatureQueue; // Queue handler for passing temperature readings between tasks
 QueueHandle_t flowRateQueue;   // Queue handler to communicate flow rate values between tasks
 
+const float buffer = 5; //The roof must be this many degrees warmer than the water heater for the pump to kick in
+
 // Initialize the OLED display
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
@@ -53,7 +55,7 @@ const int JoyY = 4;
 const int JoyBtn = 5;
 const int JoyPower = 12;
 
-volatile float settemp = 50;
+volatile float settemp = 50; //This should be the water heater temperature
 volatile float targettemp = 50; //30 degrees celsius
 volatile float lastTemperature_1 = 0; // variable to store the last known temperature reading from sensor 1
 volatile float lastTemperature_2 = 0; // variable to store the last known temperature reading from sensor 2
@@ -290,15 +292,14 @@ void loop() {
   Serial.print(targettemp);
   Serial.println(" C");
 
- // */if (lastTemperature_1 < targettemp & lastTemperature_1 < lastTemperature_2+1){//Pump is on if outlet is hotter than inlet and also hotter than user set temp
+ // if (lastTemperature_1 < targettemp){
  //  pumpStatus = 1;
  // delay(100);
  //}else{
  //   pumpStatus = 0;
  //}
-
-void pumpController();
-
+ //Using the pumpController() function instead
+  reasonableTempCheck();
   display.setCursor(0, 40);
   display.print("Pump:");
   display.setCursor(60, 40);
@@ -330,12 +331,6 @@ void pumpController();
   delay(10);
 
   loopCaptivePortal();
-  //if (temperature_1 > 100 | temperature_1 < 0){
-  //display.println("Thermocouple 1 reading >100 or <0, likely an error. Pump paused.")
-  //
-  //work in progress check for sane values from temperature/flow sensors 
-  //should shut down pump and return an error code if there's an issue;
-  //}
 }
 
 void flowSensorISR() {
@@ -371,14 +366,21 @@ void loopCaptivePortal() {
 }
 
 void pumpController(){
-if (lastTemperature_1 < targettemp & lastTemperature_1 < lastTemperature_2+1){//Pump is on if outlet is hotter than inlet and also hotter than user set temp
+if (lastTemperature_1 < targettemp & lastTemperature_1 < lastTemperature_2+buffer){//Pump is on if outlet is hotter than inlet and also hotter than user set temp
     pumpStatus = 1;
-    delay(100);
+    delay(5000);
+    if (pumpStatus == 1 & flowRate < 0.1){ 
+  //The <0.1 is a tolerance to account for the flow sensor not returning precisely zero. Also deals with any floating point arithmetic errors.
+    display.print("Warning, pump is on but flow rate is detected as nearly zero");
+    }
   }
+  
 else{
     pumpStatus = 0;
   }
-if (pumpStatus == 0){//Temperature sensors will not give an accurate reading unless some water flows through pipes.
+  //Make sure there's at least five seconds between the pump turning on and off, to prevent really crazy on-off cycling
+  //Turned this cycling function off for now
+/*if (pumpStatus == 0){//Temperature sensors will not give an accurate reading unless some water flows through pipes.
   //This is because the temperature sensors are attached to pipes after the gas water heater/solar water heater respectively
   //So if you just measure
   delay(1800000);//If the pump is off, it stays off for 30 minutes, then runs for 30 seconds before a new temperature reading is taken
@@ -389,5 +391,32 @@ if (pumpStatus == 0){//Temperature sensors will not give an accurate reading unl
   }
   else{
     delay(10000);
-  }
+  }*/
+}
+
+//work in progress reasonable data checking function
+void reasonableTempCheck(){
+if (lastTemperature_1 < 0){
+  pumpStatus = 0;
+  digitalWrite(pumpPin,LOW);
+  display.print("Thermocouple 1 reading below 0 degrees celcius, pump shut off");
+}
+else if (lastTemperature_2 < 0){
+  pumpStatus = 0;
+  digitalWrite(pumpPin,LOW);
+  display.print("Thermocouple 2 reading below 0 degrees celcius, pump shut off");
+}
+else if (lastTemperature_1 > 95){
+  pumpStatus = 0;
+  digitalWrite(pumpPin,LOW);
+  display.print("Thermocouple 1 reading above 95 degrees celcius, pump shut off");
+}
+else if (lastTemperature_2 > 95){
+  pumpStatus = 0;
+  digitalWrite(pumpPin,LOW);
+  display.print("Thermocouple 2 reading above 95 degrees celcius, pump shut off");
+}
+else{
+pumpController();
+}
 }
