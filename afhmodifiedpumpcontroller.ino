@@ -43,7 +43,7 @@ volatile float flowRate;       // Stores the calculated flow rate
 QueueHandle_t temperatureQueue; // Queue handler for passing temperature readings between tasks
 QueueHandle_t flowRateQueue;   // Queue handler to communicate flow rate values between tasks
 
-const float buffer = 5; //The roof must be this many degrees warmer than the water heater for the pump to kick in
+const float buffer = 10.0; //The roof must be this many degrees warmer than the water heater for the pump to kick in
 
 // Initialize the OLED display
 #define SCREEN_WIDTH 128
@@ -366,11 +366,15 @@ void loopCaptivePortal() {
 }
 
 void pumpController(){
-if (lastTemperature_1 < targettemp & lastTemperature_1 < lastTemperature_2+buffer){//Pump is on if outlet is hotter than inlet and also hotter than user set temp
+  //display.print(lastTemperature_1);
+  //display.print(lastTemperature_2);
+
+if (lastTemperature_1 < targettemp && lastTemperature_1 < (lastTemperature_2-buffer)){//Pump is on if outlet is hotter than inlet and also hotter than user set temp
     pumpStatus = 1;
-    delay(5000);
-    if (pumpStatus == 1 & flowRate < 0.1){ 
+    if (pumpStatus == 1 && flowRate < 0.1){ 
   //The <0.1 is a tolerance to account for the flow sensor not returning precisely zero. Also deals with any floating point arithmetic errors.
+    display.clearDisplay();
+    display.setCursor(0, 0);
     display.print("Warning, pump is on but flow rate is detected as nearly zero");
     }
   }
@@ -378,6 +382,7 @@ if (lastTemperature_1 < targettemp & lastTemperature_1 < lastTemperature_2+buffe
 else{
     pumpStatus = 0;
   }
+}
   //Make sure there's at least five seconds between the pump turning on and off, to prevent really crazy on-off cycling
   //Turned this cycling function off for now
 /*if (pumpStatus == 0){//Temperature sensors will not give an accurate reading unless some water flows through pipes.
@@ -392,28 +397,36 @@ else{
   else{
     delay(10000);
   }*/
-}
+
 
 //work in progress reasonable data checking function
 void reasonableTempCheck(){
 if (lastTemperature_1 < 0){
   pumpStatus = 0;
   digitalWrite(pumpPin,LOW);
+  display.clearDisplay();
+  display.setCursor(0, 0);
   display.print("Thermocouple 1 reading below 0 degrees celcius, pump shut off");
 }
 else if (lastTemperature_2 < 0){
   pumpStatus = 0;
   digitalWrite(pumpPin,LOW);
+  display.clearDisplay();
+  display.setCursor(0, 0);
   display.print("Thermocouple 2 reading below 0 degrees celcius, pump shut off");
 }
 else if (lastTemperature_1 > 95){
   pumpStatus = 0;
   digitalWrite(pumpPin,LOW);
+  display.clearDisplay();
+  display.setCursor(0, 0);
   display.print("Thermocouple 1 reading above 95 degrees celcius, pump shut off");
 }
 else if (lastTemperature_2 > 95){
   pumpStatus = 0;
   digitalWrite(pumpPin,LOW);
+  display.clearDisplay();
+  display.setCursor(0, 0);
   display.print("Thermocouple 2 reading above 95 degrees celcius, pump shut off");
 }
 else{
