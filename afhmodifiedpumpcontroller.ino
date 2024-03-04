@@ -43,7 +43,8 @@ volatile float flowRate;       // Stores the calculated flow rate
 QueueHandle_t temperatureQueue; // Queue handler for passing temperature readings between tasks
 QueueHandle_t flowRateQueue;   // Queue handler to communicate flow rate values between tasks
 
-const float buffer = 10.0; //The roof must be this many degrees warmer than the water heater for the pump to kick in
+const float startupBufferTemperature = 10.0; //The roof must be this many degrees warmer than the water heater for the pump to kick in
+const float shutdownBufferTemperature = 7.0;
 
 // Initialize the OLED display
 #define SCREEN_WIDTH 128
@@ -56,7 +57,7 @@ const int JoyBtn = 5;
 const int JoyPower = 12;
 
 volatile float settemp = 50; //This should be the water heater temperature
-volatile float targettemp = 50; //30 degrees celsius
+volatile float targetTemp = 50; //30 degrees celsius
 volatile float lastTemperature_1 = 0; // variable to store the last known temperature reading from sensor 1
 volatile float lastTemperature_2 = 0; // variable to store the last known temperature reading from sensor 2
 volatile float lastFlowRate = 0;
@@ -70,10 +71,10 @@ void flowRateTask(void *pvParameters) {
 
   for (;;) {
     flowPulses = 0;             // Reset the pulse count
-    int delay_num = 1000; //wait for 1 second
-    vTaskDelay(pdMS_TO_TICKS(delay_num));  // Wait for one second to allow pulses to accumulate
+    int delayNum = 1000; //wait for 1 second
+    vTaskDelay(pdMS_TO_TICKS(delayNum));  // Wait for one second to allow pulses to accumulate
     detachInterrupt(digitalPinToInterrupt(flowSensorPin));  // Disable the interrupt while calculating the flow rate
-    float flowRate = (1000/(float)delay_num) * (float)flowPulses / 7.5;  // Calculate the flow rate in liters per minute, assuming a flow sensor with a pulse rate of 7.5 pulses per liter
+    float flowRate = (1000/(float)delayNum) * (float)flowPulses / 7.5;  // Calculate the flow rate in liters per minute, assuming a flow sensor with a pulse rate of 7.5 pulses per liter
     xQueueSend(flowRateQueue, &flowRate, portMAX_DELAY);  // Send the flow rate value to the queue
     attachInterrupt(digitalPinToInterrupt(flowSensorPin), flowSensorISR, FALLING);  // Re-enable the interrupt to count pulses
   }
@@ -245,10 +246,10 @@ void loop() {
   //Serial.println(analogRead(JoyY));
   //Serial.println(digitalRead(JoyBtn));
 
-  if (targettemp > 100){
-    targettemp = 100;
-  }else if (targettemp < 0){
-    targettemp = 0;
+  if (targetTemp > 100){
+    targetTemp = 100;
+  }else if (targetTemp < 0){
+    targetTemp = 0;
   }
 
   int normJoyY = analogRead(JoyY)-2048;
@@ -273,13 +274,13 @@ void loop() {
   }
 
   if (!digitalRead(JoyBtn)){
-    targettemp = settemp;
+    targetTemp = settemp;
   }
 
   display.setCursor(0, 20);
   display.print("Target:");
   display.setCursor(60, 20);
-  display.print(targettemp, 1);
+  display.print(targetTemp, 1);
   display.print(" C");
 
   display.setCursor(0, 30);
@@ -289,17 +290,20 @@ void loop() {
   display.print(" C");
 
   Serial.print("Target Temp: ");
-  Serial.print(targettemp);
+  Serial.print(targetTemp);
   Serial.println(" C");
 
- // if (lastTemperature_1 < targettemp){
- //  pumpStatus = 1;
- // delay(100);
- //}else{
- //   pumpStatus = 0;
- //}
- //Using the pumpController() function instead
+ //Using the reasonableTempCheck and pumpController() functions instead
+ /* if (lastTemperature_1 < targettemp){
+   pumpStatus = 1;
+  delay(100);
+ }else{
+    pumpStatus = 0;
+ }
+ */
+
   reasonableTempCheck();
+
   display.setCursor(0, 40);
   display.print("Pump:");
   display.setCursor(60, 40);
@@ -342,7 +346,7 @@ void handleRoot() {
   String html = "<html><body>";
   html += "<h1>Temperature and Flow Rate</h1>";
   html += "<p>Set Temperature: " + String(settemp) + "</p>";
-  html += "<p>Target Temperature: " + String(targettemp) + "</p>";
+  html += "<p>Target Temperature: " + String(targetTemp) + "</p>";
   html += "<p>Pump Status: " + String(pumpStatus) + "</p>";
   html += "<p>Last Temperature (Sensor 1): " + String(lastTemperature_1) + "</p>";
   html += "<p>Last Temperature (Sensor 2): " + String(lastTemperature_2) + "</p>";
@@ -369,25 +373,27 @@ void pumpController(){
   //display.print(lastTemperature_1);
   //display.print(lastTemperature_2);
 
-if (lastTemperature_1 < targettemp && lastTemperature_1 < (lastTemperature_2-buffer)){//Pump is on if outlet is hotter than inlet and also hotter than user set temp
+//Pump is on if water heater thermocouple reads below 50 degrees celsius and the solar heater thermocouple reads at least 10 degrees higher than the water heater thermocouple
+if (lastTemperature_1 < targetTemp && lastTemperature_1 < (lastTemperature_2-startupBufferTemperature)){
     pumpStatus = 1;
-    if (pumpStatus == 1 && flowRate < 0.1){ 
+  }
+ //If pump is on, the roof must cool to 7 degrees warmer than the water heater for the pump to shut off
+else if(pumpStatus==1 && lastTemperature_1 < targetTemp && lastTemperature_1 < lastTemperature_2-shutdownBufferTemperature){
+    pumpStatus = 1;
+}
+else{
+    pumpStatus = 0;
+  }
+  if (pumpStatus == 1 && flowRate < 0.1){ 
   //The <0.1 is a tolerance to account for the flow sensor not returning precisely zero. Also deals with any floating point arithmetic errors.
     display.clearDisplay();
     display.setCursor(0, 0);
     display.print("Warning, pump is on but flow rate is detected as nearly zero");
     }
-  }
-  
-else{
-    pumpStatus = 0;
-  }
 }
-  //Make sure there's at least five seconds between the pump turning on and off, to prevent really crazy on-off cycling
-  //Turned this cycling function off for now
+  //Turned this pump status cycling function off for now
 /*if (pumpStatus == 0){//Temperature sensors will not give an accurate reading unless some water flows through pipes.
   //This is because the temperature sensors are attached to pipes after the gas water heater/solar water heater respectively
-  //So if you just measure
   delay(1800000);//If the pump is off, it stays off for 30 minutes, then runs for 30 seconds before a new temperature reading is taken
   pumpStatus = 1;
   display.print("on");
@@ -406,28 +412,28 @@ if (lastTemperature_1 < 0){
   digitalWrite(pumpPin,LOW);
   display.clearDisplay();
   display.setCursor(0, 0);
-  display.print("Thermocouple 1 reading below 0 degrees celcius, pump shut off");
+  display.print("Thermocouple 1 reading below 0 degrees celsius, pump shut off");
 }
 else if (lastTemperature_2 < 0){
   pumpStatus = 0;
   digitalWrite(pumpPin,LOW);
   display.clearDisplay();
   display.setCursor(0, 0);
-  display.print("Thermocouple 2 reading below 0 degrees celcius, pump shut off");
+  display.print("Thermocouple 2 reading below 0 degrees celsius, pump shut off");
 }
 else if (lastTemperature_1 > 95){
   pumpStatus = 0;
   digitalWrite(pumpPin,LOW);
   display.clearDisplay();
   display.setCursor(0, 0);
-  display.print("Thermocouple 1 reading above 95 degrees celcius, pump shut off");
+  display.print("Thermocouple 1 reading above 95 degrees celsius, pump shut off");
 }
 else if (lastTemperature_2 > 95){
   pumpStatus = 0;
   digitalWrite(pumpPin,LOW);
   display.clearDisplay();
   display.setCursor(0, 0);
-  display.print("Thermocouple 2 reading above 95 degrees celcius, pump shut off");
+  display.print("Thermocouple 2 reading above 95 degrees celsius, pump shut off");
 }
 else{
 pumpController();
