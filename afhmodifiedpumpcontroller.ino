@@ -374,17 +374,14 @@ void pumpController(){
   //display.print(lastTemperature_2);
 
 //Pump is on if water heater thermocouple reads below 50 degrees celsius and the solar heater thermocouple reads at least 10 degrees higher than the water heater thermocouple
-if (lastTemperature_1 < targetTemp && lastTemperature_1 < (lastTemperature_2-startupBufferTemperature)){
+if (pumpStatus == 0 && lastTemperature_1 < targetTemp && lastTemperature_1 < (lastTemperature_2-startupBufferTemperature)){
     pumpStatus = 1;
   }
- //If pump is on, the roof must cool to 7 degrees warmer than the water heater for the pump to shut off, and the water heater must warm to 2 degrees hotter than 50 degrees celsius. 
+ //If pump is on, the roof must cool to 7 degrees warmer than the water heater for the pump to shut off, or the water heater must warm to 2 degrees hotter than 50 degrees celsius. 
  //This is to prevent rapid pump on-off switching when the roof temp is very close to 10 degrees warmer than the water heater
-else if(pumpStatus==1 && lastTemperature_1 < targetTemp+2 && lastTemperature_1 < lastTemperature_2-shutdownBufferTemperature){
-    pumpStatus = 1;
-}
-else{
+if(pumpStatus == 1 && (lastTemperature_1 > targetTemp+2 || lastTemperature_1 > lastTemperature_2-shutdownBufferTemperature)){
     pumpStatus = 0;
-  }
+}
 if (pumpStatus == 1 && flowRate < 0.1){ 
   //The <0.1 is a tolerance to account for the flow sensor not returning precisely zero. Also deals with any floating point arithmetic errors.
     display.clearDisplay();
