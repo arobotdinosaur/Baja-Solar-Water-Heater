@@ -1,5 +1,5 @@
 Written by Alexander Haken on 2/20/2024
-Email alexand@sonic.net with any questions
+Email ahaken@ucsd.edu with any questions
 
 Notes/Primitive Guide on getting set up with the esp32-S3 board that is used in the pump controller 
 
