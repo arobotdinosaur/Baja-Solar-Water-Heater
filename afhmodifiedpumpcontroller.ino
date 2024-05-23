@@ -8,7 +8,7 @@
 #include <DNSServer.h>
 
 
-const char *ssid = "Solar_Water_Heater_Info_192.168.4.1";
+const char *ssid = "Solar_Water_Heater_192.168.4.1";
 //const char *password = "00000000"; Not using a password for now
 //The website where data is published seems to default to 192.168.4.1
 WebServer server(80);
@@ -145,6 +145,9 @@ void setup() {
   if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
     Serial.println(F("SSD1306 allocation failed"));
   }
+  else{
+    Serial.println("OLED initialization successful");
+  }
   // display.clearDisplay();
   display.clearDisplay();
   display.setTextSize(1);
@@ -229,19 +232,19 @@ void loop() {
   display.setTextSize(1);
   display.setTextColor(WHITE);
 
-  display.setCursor(0, 0);
+  display.setCursor(0,10);
   display.print("Temp 1:");
-  display.setCursor(60, 0);
+  display.setCursor(60, 10);
   display.print(lastTemperature_1, 1);
   display.print("C");
 
-  display.setCursor(0, 10);
+  display.setCursor(0, 20);
   display.print("Temp 2:");
-  display.setCursor(60, 10);
+  display.setCursor(60, 20);
   display.print(lastTemperature_2, 1);
   display.print("C");
 
-
+/*
   analogWrite(JoyPower,1023); //turn on power for joystick
   //Serial.println(analogRead(JoyY));
   //Serial.println(digitalRead(JoyBtn));
@@ -261,7 +264,7 @@ void loop() {
       settemp += 0.4;
     }
     if (normJoyY < -2000){
-      settemp += 1;
+      settemp += 1;//When joystick is unplugged the value defaults to very low
     }
   }else if (normJoyY > 1500){
     settemp -= 0.1;
@@ -276,18 +279,18 @@ void loop() {
   if (!digitalRead(JoyBtn)){
     targetTemp = settemp;
   }
-
-  display.setCursor(0, 20);
+*/
+  display.setCursor(0, 30);
   display.print("Target:");
-  display.setCursor(60, 20);
+  display.setCursor(60, 30);
   display.print(targetTemp, 1);
   display.print(" C");
 
-  display.setCursor(0, 30);
-  display.print("New temp:");
-  display.setCursor(60, 30);
-  display.print(settemp, 1);
-  display.print(" C");
+ // display.setCursor(0, 30);
+ // display.print("New temp:");
+ // display.setCursor(60, 30);
+ // display.print(settemp, 1);
+ // display.print(" C");
 
   Serial.print("Target Temp: ");
   Serial.print(targetTemp);
@@ -374,12 +377,12 @@ void pumpController(){
   //display.print(lastTemperature_2);
 
 //Pump is on if water heater thermocouple reads below 50 degrees celsius and the solar heater thermocouple reads at least 10 degrees higher than the water heater thermocouple
-if (pumpStatus == 0 && lastTemperature_1 < targetTemp && lastTemperature_1 < (lastTemperature_2-startupBufferTemperature)){
+if (pumpStatus == 0 && lastTemperature_1 < targetTemp && lastTemperature_1 < (lastTemperature_2)){
     pumpStatus = 1;
   }
  //If pump is on, the roof must cool to 7 degrees warmer than the water heater for the pump to shut off, or the water heater must warm to 2 degrees hotter than 50 degrees celsius. 
  //This is to prevent rapid pump on-off switching when the roof temp is very close to 10 degrees warmer than the water heater
-if(pumpStatus == 1 && (lastTemperature_1 > targetTemp+2 || lastTemperature_1 > lastTemperature_2-shutdownBufferTemperature)){
+if(pumpStatus == 1 && (lastTemperature_1 > targetTemp+2 || lastTemperature_1 > lastTemperature_2)){
     pumpStatus = 0;
 }
 if (pumpStatus == 1 && flowRate < 0.1){ 
