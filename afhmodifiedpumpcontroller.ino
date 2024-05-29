@@ -6,6 +6,8 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <DNSServer.h>
+#include <chrono>
+#include <thread>
 
 
 const char *ssid = "Solar_Water_Heater_192.168.4.1";
@@ -16,7 +18,8 @@ WebServer server(80);
 TwoWire I2C_one = TwoWire(0);
 
 // Define the input pin for the flow sensor
-const int flowSensorPin = 18;
+const int voltageSensorPin = 18;
+const int flowSensorPin = 9; //used to be 18
 const int pumpPin = 16;
 
 volatile int pumpStatus = 0;
@@ -24,6 +27,9 @@ volatile bool prevButton = false;
 
 volatile float temperature_1 = 0;
 volatile float temperature_2 = 0;
+
+volatile int value = 0;
+volatile float voltage = 0.0;
 
 // Data wire is plugged into pin 17 and 18 on ESP32
 #define ONE_WIRE_BUS_1 15
@@ -305,6 +311,15 @@ void loop() {
  }
  */
 
+  if (voltageRead() && pumpStatus==0){
+  digitalWrite(pumpPin,HIGH);
+  delay(30000);
+  digitalWrite(pumpPin,LOW);
+     if (lastTemperature_1>lastTemperature_2-shutdownBufferTemperature){
+       delay(3600000);
+     }
+  }
+
   reasonableTempCheck();
 
   display.setCursor(0, 40);
@@ -412,31 +427,42 @@ if (lastTemperature_1 < 0){
   pumpStatus = 0;
   digitalWrite(pumpPin,LOW);
   display.clearDisplay();
-  display.setCursor(0, 0);
+  display.setCursor(0, 10);
   display.print("Thermocouple 1 reading below 0 degrees celsius, pump shut off");
 }
 else if (lastTemperature_2 < 0){
   pumpStatus = 0;
   digitalWrite(pumpPin,LOW);
   display.clearDisplay();
-  display.setCursor(0, 0);
+  display.setCursor(0, 10);
   display.print("Thermocouple 2 reading below 0 degrees celsius, pump shut off");
 }
 else if (lastTemperature_1 > 95){
   pumpStatus = 0;
   digitalWrite(pumpPin,LOW);
   display.clearDisplay();
-  display.setCursor(0, 0);
+  display.setCursor(0, 10);
   display.print("Thermocouple 1 reading above 95 degrees celsius, pump shut off");
 }
 else if (lastTemperature_2 > 95){
   pumpStatus = 0;
   digitalWrite(pumpPin,LOW);
   display.clearDisplay();
-  display.setCursor(0, 0);
+  display.setCursor(0, 10);
   display.print("Thermocouple 2 reading above 95 degrees celsius, pump shut off");
 }
 else{
 pumpController();
 }
+}
+
+bool voltageRead(){
+  value = analogRead(voltageSensorPin);
+ // voltage = value*(5.0/1023); //might change this based on tests with foltage sensor
+  if (value > (512)) {
+    return true;
+  }
+  else{
+    return false;
+  }
 }
